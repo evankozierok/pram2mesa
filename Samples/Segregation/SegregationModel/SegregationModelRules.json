@@ -1,0 +1,18 @@
+[
+    {
+        "name": "segregation-model",
+        "group_qry": null,
+        "memo": null,
+        "name_human": "segregation-model",
+        "t": null,
+        "i": null,
+        "rules": [],
+        "t_unit_ms": null,
+        "t_mul": 0.0,
+        "T": {},
+        "attr": "team",
+        "p_migrate": 0.05,
+        "p_repel": 0.5,
+        "rule_type": "SegregationModel"
+    }
+]

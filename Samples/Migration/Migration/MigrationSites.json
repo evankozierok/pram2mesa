@@ -1,0 +1,46 @@
+[
+    {
+        "attr": {
+            "capacity_max": 1
+        },
+        "name": "Sudan",
+        "rel_name": "@",
+        "hash": 2911265521968375644
+    },
+    {
+        "attr": {
+            "travel_time": 10,
+            "capacity_max": 1
+        },
+        "name": "Egypt",
+        "rel_name": "@",
+        "hash": 17349441579982120373
+    },
+    {
+        "attr": {
+            "travel_time": 8,
+            "capacity_max": 1
+        },
+        "name": "Ethiopia",
+        "rel_name": "@",
+        "hash": 1180346688797316013
+    },
+    {
+        "attr": {
+            "travel_time": 9,
+            "capacity_max": 1
+        },
+        "name": "Chad",
+        "rel_name": "@",
+        "hash": 4383307766747546538
+    },
+    {
+        "attr": {
+            "travel_time": 11,
+            "capacity_max": 1
+        },
+        "name": "Libya",
+        "rel_name": "@",
+        "hash": 7802923732610042567
+    }
+]

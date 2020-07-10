@@ -1,0 +1,18 @@
+[
+    {
+        "attr": {
+            "capacity_max": 1
+        },
+        "name": "a",
+        "rel_name": "@",
+        "hash": 18148180537309096473
+    },
+    {
+        "attr": {
+            "capacity_max": 1
+        },
+        "name": "b",
+        "rel_name": "@",
+        "hash": 14764971477707054940
+    }
+]

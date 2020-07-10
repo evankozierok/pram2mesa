@@ -1,0 +1,39 @@
+[
+    {
+        "name": "sirs-model",
+        "group_qry": null,
+        "memo": null,
+        "name_human": "sirs-model",
+        "t": null,
+        "i": null,
+        "rules": [],
+        "t_unit_ms": null,
+        "t_mul": 0.0,
+        "T": {},
+        "var": "flu",
+        "tm": {
+            "s": [
+                0.95,
+                0.05,
+                0.0
+            ],
+            "i": [
+                0.0,
+                0.5,
+                0.5
+            ],
+            "r": [
+                0.1,
+                0.0,
+                0.9
+            ]
+        },
+        "states": [
+            "s",
+            "i",
+            "r"
+        ],
+        "cb_before_apply": null,
+        "rule_type": "SIRSModel_MC"
+    }
+]
