@@ -2,14 +2,14 @@
 A custom Model class for a Mesa simulation.
 """
 
-from .SIRSModelAgent import SIRSModelAgent, GroupQry
+from .SIRSModelAgent import SIRSModelAgent
 import json
 import os
 import warnings
 from mesa import Agent, Model
 from mesa.space import NetworkGrid
 from mesa.time import StagedActivation
-from make_python_identifier import make_python_identifier as mpi
+from pram2mesa.make_python_identifier import make_python_identifier as mpi
 import networkx as nx
 
 

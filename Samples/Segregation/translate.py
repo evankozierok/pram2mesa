@@ -3,18 +3,12 @@ Original PRAM Simulation from:
     pram/src/sim/09-segregation/sim.py
 """
 
-import math
-import random
-import os
-
-from scipy.stats import poisson
-
 from pram.data   import GroupSizeProbe, ProbeMsgMode, ProbePersistenceDB
-from pram.entity import Group, GroupDBRelSpec, GroupQry, GroupSplitSpec, Site
+from pram.entity import Group, GroupQry, Site
 from pram.rule   import SegregationModel
 from pram.sim    import Simulation
 
-from pram2mesa import pram2mesa
+from pram2mesa.pram2mesa import pram2mesa
 # ----------------------------------------------------------------------------------------------------------------------
 # (1) Simulation (two locations)
 

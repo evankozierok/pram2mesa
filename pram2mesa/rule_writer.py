@@ -13,7 +13,7 @@ from typing import Any, Optional, Union, Sequence
 
 import typing
 
-from make_python_identifier import make_python_identifier as mpi
+from pram2mesa.make_python_identifier import make_python_identifier as mpi
 
 
 class RuleWriter(NodeTransformer):

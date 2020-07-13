@@ -4,13 +4,13 @@ Original PRAM Simulation from:
 """
 
 
-from pram.data        import ProbePersistenceDB, ProbeMsgMode, GroupSizeProbe
-from pram.entity      import Group, GroupQry, GroupSplitSpec
+from pram.data        import ProbeMsgMode, GroupSizeProbe
+from pram.entity      import Group
 from pram.model.model import MCSolver
 from pram.model.epi   import SIRSModel
 from pram.sim         import Simulation
 
-from pram2mesa import pram2mesa
+from pram2mesa.pram2mesa import pram2mesa
 
 # ----------------------------------------------------------------------------------------------------------------------
 s = (Simulation().

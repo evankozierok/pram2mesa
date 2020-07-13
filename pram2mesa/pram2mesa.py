@@ -3,7 +3,7 @@ from typing import Iterable, Tuple, Set, List
 from pram.rule import IterAlways, IterPoint, IterInt, IterSet
 from pram.rule import TimeAlways, TimePoint, TimeInt, TimeSet
 from pram.sim import Simulation
-from make_python_identifier import make_python_identifier as mpi
+from pram2mesa.make_python_identifier import make_python_identifier as mpi
 import dill
 import os.path
 import re
@@ -13,7 +13,7 @@ import inspect
 import ast
 import astor
 import autopep8
-from rule_writer import RuleWriter
+from pram2mesa.rule_writer import RuleWriter
 
 
 # TODO: package mpi with each translation?
@@ -31,7 +31,7 @@ def pram2mesa(sim: Simulation, name: str, autopep: bool = True) -> None:
     :param autopep: Should the files be run through autopep8 to clean the code?
                     If autopep evaluates to False, autopep8 will not be used.
                     If custom autopep8 usage is desired, set autopep to False and do so manually
-    :return: None. Creates two Python files containing the new Mesa Agent and Model classes and two JSON data files.
+    :return: None. Creates two Python files containing the new Mesa Agent and Model classes and three JSON data files.
              From there, instantiate one of these Models and proceed using standard Mesa tools.
     """
     directory = _make_filename(name, extension='')
@@ -717,18 +717,12 @@ def _make_filename(name: str, extension: str = '.py') -> str:
 
 if __name__ == '__main__':
     # SAMPLE SIMULATION FROM 09-segregation
-    import math
-    import random
     import os
 
-    from scipy.stats import poisson
-
     from pram.data import GroupSizeProbe, ProbeMsgMode, ProbePersistenceDB
-    from pram.entity import Group, GroupDBRelSpec, GroupQry, GroupSplitSpec, Site
+    from pram.entity import Group, GroupQry, Site
     from pram.rule import SegregationModel
     from pram.sim import Simulation
-    from pram.rule import Rule
-    from test_rules import TranslateEverything, LambdasAndArguments
 
     # -----------------------------------------------------------------------------------------------------------------
     # (1) Simulation (two locations)

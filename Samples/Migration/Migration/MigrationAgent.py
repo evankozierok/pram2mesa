@@ -2,17 +2,15 @@
 A custom Agent class for a Mesa simulation.
 """
 
-from mesa import Agent, Model
-from make_python_identifier import make_python_identifier as mpi
-from collections import Iterable, namedtuple
+from mesa import Agent
+from pram2mesa.make_python_identifier import make_python_identifier as mpi
+from collections import Iterable
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Callable
-import copy
 import dill
 import json
 # ---- CUSTOM IMPORTS ----
 # (many may be extraneous)
-import statistics
 import random
 
 rule_file = 'MigrationRules.json'  # This could probably be done better?

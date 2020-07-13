@@ -1,20 +1,41 @@
 # pram2mesa
-Tools for translating [PyPRAM](https://github.com/momacs/pram)'s Probabilistic Relational Agent-Based Models to [Mesa](https://github.com/projectmesa/mesa)'s Agent-Based Models
+Tools for translating [PyPRAM](https://momacs.github.io/pram/index.html)'s Probabilistic Relational Agent-Based Models to [Mesa](https://github.com/projectmesa/mesa)'s Agent-Based Models
 
-## Description
-Coming soon!
+pram2mesa is a tool allowing a Probabilistic Relational Agent-Based Model (PRAM) to be translated into an Agent-Based Model (ABM). There are a few tradeoffs here:
+* PRAMs work at a group level, while ABMs work at an individual agent level
+* PRAMs have a more formal grammar, while ABMs are open-ended
+* PRAMs are often much faster than ABMs, especially on very large populations
+
+Core to this project, however, is a more theoretical purpose - demonstrating the interconnectedness of the two frameworks. While they are not the same, they are similar in many ways, allowing a tool like pram2mesa to exist.
 
 ## Installation
-Coming soon!
+### Dependencies (For Translation)
+* [PyPRAM](https://momacs.github.io/pram/index.html) (must be installed separately; see below)
+* [astor](https://astor.readthedocs.io/en/latest/)
+* [autopep8](https://pypi.org/project/autopep8/)
+* [dill](https://pypi.org/project/dill/)
+* [iteround](https://pypi.org/project/iteround/)
+### Dependencies (For Running Translated ABMs)
+* [Mesa](https://mesa.readthedocs.io/en/master/)
+* [networkx](https://networkx.github.io/) (also a dependency of Mesa)
+* [dill](https://pypi.org/project/dill/)
+### Setup
+To install pram2mesa and its dependencies (except PyPRAM) simply use pip:
+```
+pip install pram2mesa
+```
+PyPRAM must be installed separately. See PyPRAM's [Setup](https://github.com/momacs/pram#setup) for details or just use:
+```
+pip install git+https://github.com/momacs/pram.git
+```
+Bear in mind that any computer running a translated ABM will (of course) need Mesa, but also dill. 
 
 ## Usage
 ### Translating the PRAM
 To translate a PRAM, first create the PRAM in a Python file or interpreter. Make sure that you **do not run** the PRAM. If you do, your new ABM will be setup with the ending configuration of the PRAM, not the beginning.
 ```python
 my_pram = (Simulation().
-    add([
-        ...
-    ])
+    add(...)
 )
 ```
 Ensure you have imported pram2mesa:
@@ -58,6 +79,8 @@ Then, you can extract graphs or other data from your datacollector. If you are u
 
 ## Acknowledgements
 Thank you to my research mentors, Drs. [Paul Cohen](http://paulrcohen.github.io/) and [Tomek Loboda](https://tomekloboda.net/#p=0), for their support on this project.
+
+This project is supported by the Brackenridge Fellowship at the [University of Pittsburgh Honors College](https://www.honorscollege.pitt.edu/).
 
 ## License
 This project is licensed under the [MIT License](https://github.com/evankozierok/pram2mesa/blob/master/LICENSE).

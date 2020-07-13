@@ -2,30 +2,15 @@
 A custom Agent class for a Mesa simulation.
 """
 
-from mesa import Agent, Model
-from make_python_identifier import make_python_identifier as mpi
-from collections import Iterable, namedtuple
+from mesa import Agent
+from pram2mesa.make_python_identifier import make_python_identifier as mpi
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Callable
-import copy
 import dill
 import json
 # ---- CUSTOM IMPORTS ----
 # (many may be extraneous)
-from scipy.stats import gamma, lognorm, norm, poisson, rv_discrete
-from scipy.integrate import ode, solve_ivp
-import numpy as np
-import math
-from dotmap import DotMap
-from attr import attrs, attrib, converters
 from collections import Iterable
-from abc import abstractmethod, ABC
-from enum import IntEnum
-import string
-from abc import abstractmethod, ABC
-from dotmap import DotMap
-import random
-import matplotlib.pyplot as plt
 
 rule_file = 'SIRSModelRules.json'  # This could probably be done better?
 

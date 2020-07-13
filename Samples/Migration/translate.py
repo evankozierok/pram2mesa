@@ -8,15 +8,15 @@ This simulation is an extension of 'sim-02.py' and adds the eventual settlement 
 the counties bordering the conflict country.
 """
 
-from pram.data   import Probe, ProbePersistenceMode, ProbePersistenceDB, ProbePersistenceMem, Var
+from pram.data   import Probe, ProbePersistenceMem, Var
 from pram.entity import Group, GroupQry, GroupSplitSpec, Site
-from pram.rule   import IterAlways, TimeAlways, Rule, Noop
+from pram.rule   import IterAlways, TimeAlways, Rule
 from pram.sim    import Simulation
 
 import random
 import statistics
 
-from pram2mesa import pram2mesa
+from pram2mesa.pram2mesa import pram2mesa
 
 # ----------------------------------------------------------------------------------------------------------------------
 site_sudan    = Site('Sudan')
