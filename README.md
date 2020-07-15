@@ -10,6 +10,7 @@ Core to this project, however, is a more theoretical purpose - demonstrating the
 
 ## Installation
 ### Dependencies (For Translation)
+* [Python 3.8](https://www.python.org/)
 * [PyPRAM](https://momacs.github.io/pram/index.html) (must be installed separately; see below)
 * [astor](https://astor.readthedocs.io/en/latest/)
 * [autopep8](https://pypi.org/project/autopep8/)
@@ -30,6 +31,7 @@ pip install git+https://github.com/momacs/pram.git
 ```
 Bear in mind that any computer running a translated ABM will (of course) need Mesa, but also dill. 
 
+Also, note that many of the samples require further dependencies to run, although most should be covered by installing PyPRAM.
 ## Usage
 ### Translating the PRAM
 To translate a PRAM, first create the PRAM in a Python file or interpreter. Make sure that you **do not run** the PRAM. If you do, your new ABM will be setup with the ending configuration of the PRAM, not the beginning.

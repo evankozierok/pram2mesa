@@ -1,3 +1,4 @@
+import textwrap
 from typing import Iterable, Tuple, Set, List
 
 from pram.rule import IterAlways, IterPoint, IterInt, IterSet
@@ -13,11 +14,15 @@ import inspect
 import ast
 import astor
 import autopep8
+import shutil
 from pram2mesa.rule_writer import RuleWriter
 
 
-# TODO: package mpi with each translation?
+# TODO: package mpi with each translation? -- Make more specific function for that
+# TODO: maybe incorporate is_applicable into __call__ or something
 # TODO: make all dangling random calls go to pop.random
+# TODO: _attr, _rel, and thus get_attrs and get_rels are not good. Could try doing __setattr__ shenanigans? Or just say
+#       goodbye to that part... (matching full queries also a mess)
 # TODO: SimRules
 # TODO: more robust handling of inheritance; currently we stop after finding an apply but maybe we should keep going?
 # TODO: make it faster. A large portion of time is spent in get_groups when trying a GroupQry
@@ -37,24 +42,25 @@ def pram2mesa(sim: Simulation, name: str, autopep: bool = True) -> None:
     directory = _make_filename(name, extension='')
     os.mkdir(directory)
     os.chdir(directory)
+    # model relies on make_python_identifier so we pack it up
+    shutil.copy(inspect.getsourcefile(mpi), '.')
     group_file, site_file, rule_file = create_json_data(sim, name)
     rw = RuleWriter()
-    # new_rules = []
-    # rule_imports = []
-    # for rule in sim.rules:
-    #     src = inspect.getsource(type(rule))
-    #     srcfile = inspect.getsourcefile(type(rule))
-    #     tree = ast.parse(src)
-    #     # for node in ast.walk(tree):
-    #     #     for child in ast.iter_child_nodes(node):
-    #     #         child.parent = node
-    #     new_rules.append(astor.to_source(rw.visit(tree)))
-    #     rule_imports.extend(_extract_imports(srcfile))
+
     new_rules, rule_imports = translate_rules([type(r) for r in sim.rules], rw)
     top_level_rules = [type(r).__name__ for r in sim.rules]
+
+    group_setup = sim.fn.group_setup or ''
+    if group_setup:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(group_setup)))
+        tree.body[0].name = '_group_setup'
+        # tree.body[0].args.args[0].arg = 'self'  # FIXME: this is hacky
+        tree.body[0].decorator_list.append('staticmethod')
+        group_setup = astor.to_source(rw.visit(tree))
+
     agent_file = create_agent_class(name, new_rules, top_level_rules, rule_file, used_functions=rw.used,
                                     custom_imports='\n'.join(rule_imports))
-    model_file = create_model_class(name, group_file, site_file, agent_file, top_level_rules,
+    model_file = create_model_class(name, group_file, site_file, agent_file, top_level_rules, group_setup,
                                     used_functions=rw.used)
 
     if autopep:
@@ -106,7 +112,7 @@ A custom Agent class for a Mesa simulation.
 """
 
 from mesa import Agent, Model
-from make_python_identifier import make_python_identifier as mpi
+from .make_python_identifier import make_python_identifier as mpi
 from collections import Iterable, namedtuple
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Callable
@@ -275,7 +281,7 @@ class {class_name}(Agent):
 
 
 def create_model_class(name: str, group_file: str, site_file: str, agent_file: str, stage_list: Iterable[str],
-                       custom_imports: str = '', used_functions: Set[str] = None) -> str:
+                       group_setup: str = '', custom_imports: str = '', used_functions: Set[str] = None) -> str:
     """
     Creates a Python file containing code for the custom Model class.
     :param name: The name from which the filename will be derived
@@ -283,6 +289,7 @@ def create_model_class(name: str, group_file: str, site_file: str, agent_file: s
     :param site_file: The name of the JSON file storing Site data from the PRAM
     :param agent_file: The name of the corresponding Mesa Agent file
     :param stage_list: A list of stage functions for the schedule
+    :param group_setup: The definition of a pre-run group setup rule, or None
     :param custom_imports: Non-default import statements that should be included
     :param used_functions: A set of custom functions that must be added. This is derived in rule processing
     :return: The filename of the new Python file.
@@ -303,7 +310,7 @@ import warnings
 from mesa import Agent, Model
 from mesa.space import NetworkGrid
 from mesa.time import StagedActivation
-from make_python_identifier import make_python_identifier as mpi
+from .make_python_identifier import make_python_identifier as mpi
 import networkx as nx
 {custom_imports}
 
@@ -323,6 +330,10 @@ class {class_name}(Model):
         self.site_hashes = {{h: s for s, h in dict(self.G.nodes.data('hash')).items()}}
         self._generate_agents()
         self.vita_groups = []
+        {f"""
+        for a in self.schedule.agents:
+            {class_name}._group_setup(self, a)""" 
+        if group_setup else ""}
         
         
     def step(self):
@@ -370,9 +381,11 @@ class {class_name}(Model):
         with open("{site_file}", 'r') as file:
             j = json.load(file)
             for site in j:
-                self.G.add_node(site['name'], hash=site['hash'], rel_name=site['rel_name'])
+                self.G.add_node(str(site['name']), hash=site['hash'], rel_name=site['rel_name'])
                 for k, v in site['attr'].items():
-                    self.G.nodes[site['name']][k] = v
+                    self.G.nodes[str(site['name'])][k] = v
+
+{textwrap.indent(group_setup, '    ') if group_setup else ""}
 
     # ------------------------- RUNTIME FUNCTIONS -------------------------
 '''
@@ -715,12 +728,12 @@ def _make_filename(name: str, extension: str = '.py') -> str:
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-if __name__ == '__main__':
+def main():
     # SAMPLE SIMULATION FROM 09-segregation
     import os
 
     from pram.data import GroupSizeProbe, ProbeMsgMode, ProbePersistenceDB
-    from pram.entity import Group, GroupQry, Site
+    from pram.entity import Group, GroupQry, Site, GroupSplitSpec
     from pram.rule import SegregationModel
     from pram.sim import Simulation
 
@@ -728,6 +741,12 @@ if __name__ == '__main__':
     # (1) Simulation (two locations)
 
     loc = [Site('a'), Site('b')]
+
+    def gs(pop, group):
+        return [
+            GroupSplitSpec(p=0.7, attr_set={ 'foobar': 'foo' }),
+            GroupSplitSpec(p=0.3, attr_set={ 'foobar': 'bar' })
+        ]
 
     probe_loc = GroupSizeProbe.by_rel('loc', Site.AT, loc, msg_mode=ProbeMsgMode.DISP)
     probe_sim = GroupSizeProbe(
@@ -747,6 +766,7 @@ if __name__ == '__main__':
         set().
         pragma_autocompact(True).
         pragma_live_info(False).
+        fn_group_setup(gs).
         done().
         add([
             SegregationModel('team', len(loc)),
@@ -761,7 +781,7 @@ if __name__ == '__main__':
             # fixed naming issue in pram/sim.py line 815
         ])
     )
-    pram2mesa(s, 'TestRuleApplication')
+    pram2mesa(s, 'TestCopyMPI')
 
     # tree = ast.parse(
     #     # "g.get_attr(name)\n"
@@ -794,3 +814,7 @@ if __name__ == '__main__':
     #
     # t = TestRule()
     # print(inspect.getsourcefile(type(t)))
+
+
+if __name__ == '__main__':
+    main()
