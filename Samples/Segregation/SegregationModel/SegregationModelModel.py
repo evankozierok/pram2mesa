@@ -2,20 +2,20 @@
 A custom Model class for a Mesa simulation.
 """
 
-from .SegregationModelAgent import SegregationModelAgent
+from .SegregationModelAgent import SegregationModelAgent, GroupQry
 import json
 import os
 import warnings
 from mesa import Agent, Model
 from mesa.space import NetworkGrid
 from mesa.time import StagedActivation
-from pram2mesa.make_python_identifier import make_python_identifier_original as mpi
+from .make_python_identifier import make_python_identifier as mpi
 import networkx as nx
 
 
 class SegregationModelModel(Model):
 
-    def __init__(self):
+    def __init__(self, datacollector=None):
         super().__init__()
         # work from directory this file is in
         os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -29,9 +29,10 @@ class SegregationModelModel(Model):
             self.G.nodes.data('hash')).items()}
         self._generate_agents()
         self.vita_groups = []
+        self.datacollector = datacollector
 
     def step(self):
-        if hasattr(self, 'datacollector'):
+        if self.datacollector:
             self.datacollector.collect(self)
         else:
             warnings.warn('This Model has no DataCollector! You may want to add one in the `datacollector` attribute '
@@ -77,9 +78,9 @@ class SegregationModelModel(Model):
             j = json.load(file)
             for site in j:
                 self.G.add_node(
-                    site['name'], hash=site['hash'], rel_name=site['rel_name'])
+                    str(site['name']), hash=site['hash'], rel_name=site['rel_name'])
                 for k, v in site['attr'].items():
-                    self.G.nodes[site['name']][k] = v
+                    self.G.nodes[str(site['name'])][k] = v
 
     # ------------------------- RUNTIME FUNCTIONS -------------------------
 
@@ -92,7 +93,7 @@ class SegregationModelModel(Model):
                      attribute dictionary if name is None (note: this includes the special 'agent' attribute)
                  If agent_or_node is an Agent, returns the named attribute of that Agent
         """
-        name = mpi(name)[0] if name is not None else name
+        name = mpi(name) if name is not None else name
         if isinstance(agent_or_node, str):
             node_dict = self.grid.G.nodes[agent_or_node]
             return node_dict.get(name) if name is not None else node_dict

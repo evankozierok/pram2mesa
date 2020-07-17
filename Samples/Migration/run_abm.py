@@ -3,18 +3,18 @@ from mesa.datacollection import DataCollector
 import matplotlib.pyplot as plt
 import time
 
-model = MigrationModel()
-
 # the original PRAM has 1000000 agents; however, you may want to keep it smaller in the ABM (this sample has 1000)
 # because of memory and time concerns!
-pop_size = len(model.schedule.agents)
+pop_size = 1000
 
-model.datacollector = DataCollector(
-    model_reporters={
-        "Migrating": lambda m: sum([a.is_migrating for a in m.schedule.agents]),
-        "Settled": lambda m: sum([hasattr(a, 'has_settled') and a.has_settled for a in m.schedule.agents]),
-        "Dead": lambda m: pop_size - len(m.schedule.agents)
-    }
+model = MigrationModel(
+    datacollector=DataCollector(
+        model_reporters={
+            "Migrating": lambda m: sum([a.is_migrating for a in m.schedule.agents]),
+            "Settled": lambda m: sum([hasattr(a, 'has_settled') and a.has_settled for a in m.schedule.agents]),
+            "Dead": lambda m: pop_size - len(m.schedule.agents)
+        }
+    )
 )
 
 runs = 48
