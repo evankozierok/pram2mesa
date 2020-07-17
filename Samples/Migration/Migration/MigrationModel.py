@@ -9,7 +9,7 @@ import warnings
 from mesa import Agent, Model
 from mesa.space import NetworkGrid
 from mesa.time import StagedActivation
-from pram2mesa.make_python_identifier import make_python_identifier as mpi
+from pram2mesa.make_python_identifier import make_python_identifier_original as mpi
 import networkx as nx
 
 

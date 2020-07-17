@@ -787,45 +787,47 @@ class RuleWriter(NodeTransformer):
             if kw.arg.endswith("set"):
                 # kw.value is (should be) a Dict node
                 # one special case is Group.VOID which is an attribute
-                if isinstance(kw.value, Attribute) \
-                        and isinstance(kw.value.value, Name) and kw.value.value.id == 'Group' \
-                        and kw.value.attr == 'VOID':
+                if (isinstance(kw.value, Attribute)
+                        and isinstance(kw.value.value, Name) and kw.value.value.id == 'Group'
+                        and kw.value.attr == 'VOID'):
                     kw.value = Dict(keys=[Constant(value='__void__')], values=[Constant(value=True)])
 
                 # process setting position specially (i.e. pop.grid.move_agent(group, value) )
-                pos_change = next(iter([
-                    key for key in kw.value.keys
-                    if (isinstance(key, Constant) and key.value == '@')
-                       or (isinstance(key, Attribute)
-                           and getattr(key.value, 'id', False) == 'Site'  # implies a Name
-                           and key.attr == 'AT')
-                ]), None)
-                if pos_change:
-                    pos_change_index = kw.value.keys.index(pos_change)
-                    kw.value.keys.pop(pos_change_index)  # don't need a setattr for this
-                    calls.append(Expr(Call(
-                        func=Attribute(
-                            value=Attribute(
-                                value=Name(id='pop', ctx=Load()),
-                                attr='grid',
-                                ctx=Load()
-                            ),
-                            attr='move_agent',
-                            ctx=Load()
-                        ),
-                        args=[
-                            Name(id='group', ctx=Load()),
-                            kw.value.values.pop(pos_change_index)
-                        ],
-                        keywords=[]
-                    )))
+                # this should be handled in __setattr__ naturally now
+                # pos_change = next(iter([
+                #     key for key in kw.value.keys
+                #     if (isinstance(key, Constant) and key.value == '@')
+                #        or (isinstance(key, Attribute)
+                #            and getattr(key.value, 'id', False) == 'Site'  # implies a Name
+                #            and key.attr == 'AT')
+                # ]), None)
+                # if pos_change:
+                #     pos_change_index = kw.value.keys.index(pos_change)
+                #     kw.value.keys.pop(pos_change_index)  # don't need a setattr for this
+                #     calls.append(Expr(Call(
+                #         func=Attribute(
+                #             value=Attribute(
+                #                 value=Name(id='pop', ctx=Load()),
+                #                 attr='grid',
+                #                 ctx=Load()
+                #             ),
+                #             attr='move_agent',
+                #             ctx=Load()
+                #         ),
+                #         args=[
+                #             Name(id='group', ctx=Load()),
+                #             kw.value.values.pop(pos_change_index)
+                #         ],
+                #         keywords=[]
+                #     )))
 
                 calls.extend([Expr(Call(
                     func=Name(id='setattr', ctx=Load()),
                     args=[
                         Name(id='group', ctx=Load()),
-                        # ensure we are setting appropriate variables
-                        Constant(value=mpi(key.value)[0]) if isinstance(key, Constant) else key,
+                        # ensure we are setting appropriate variables (this is now done in __setattr__/__delattr__)
+                        # Constant(value=mpi(key.value)[0]) if isinstance(key, Constant) else key,
+                        key,
                         value
                     ],
                     keywords=[]
@@ -836,7 +838,8 @@ class RuleWriter(NodeTransformer):
                     func=Name(id='delattr', ctx=Load()),
                     args=[
                         Name(id='group', ctx=Load()),
-                        Constant(value=mpi(key.value)[0]) if isinstance(key, Constant) else key
+                        # Constant(value=mpi(key.value)[0]) if isinstance(key, Constant) else key
+                        key
                     ],
                     keywords=[]
                 )) for key in kw.value.elts])
@@ -1046,7 +1049,8 @@ class RuleWriter(NodeTransformer):
             g.get_rel(name)
         into a call like:
             # g.pos if name == '@' else getattr(g, name, g.namespace[name])
-            g.pos if name == '@' else getattr(g, mpi(name)[0])
+            # g.pos if name == '@' else getattr(g, mpi(name)[0])
+            getattr(g, name)
         :param node:
         :return:
         """
@@ -1055,31 +1059,41 @@ class RuleWriter(NodeTransformer):
         # if isinstance(name, Constant) and isinstance(name.value, str):
         #     mod_name, _ = mpi(name)
 
-        return IfExp(
-            test=Compare(
-                left=name,
-                ops=[Eq()],
-                comparators=[Constant(value='@')]
-            ),
-            body=RuleWriter.t_get_site_at(node),
-            # orelse=RuleWriter.t_get_attr(node)
-            orelse=Call(
-                func=Name(id='getattr', ctx=Load()),
-                args=[
-                    node.func.value,  # caller
-                    Subscript(
-                        value=Call(
-                            func=Name(id='mpi', ctx=Load()),
-                            args=[name],
-                            keywords=[]
-                        ),
-                        slice=Index(value=Constant(value=0)),
-                        ctx=Load()
-                    )
-                ],
-                keywords=[]
-            )
+        return Call(
+            func=Name(id='getattr', ctx=Load()),
+            args=[
+                node.func.value,
+                name
+            ],
+            keywords=[]
         )
+
+        # return IfExp(
+        #     test=Compare(
+        #         left=name,
+        #         ops=[Eq()],
+        #         comparators=[Constant(value='@')]
+        #     ),
+        #     body=RuleWriter.t_get_site_at(node),
+        #     # orelse=RuleWriter.t_get_attr(node)
+        #     orelse=Call(
+        #         func=Name(id='getattr', ctx=Load()),
+        #         args=[
+        #             node.func.value,  # caller
+        #             # Subscript(
+        #             #     value=Call(
+        #             #         func=Name(id='mpi', ctx=Load()),
+        #             #         args=[name],
+        #             #         keywords=[]
+        #             #     ),
+        #             #     slice=Index(value=Constant(value=0)),
+        #             #     ctx=Load()
+        #             # )
+        #             name
+        #         ],
+        #         keywords=[]
+        #     )
+        # )
 
     @staticmethod
     def t_get_rels(node):
@@ -1254,7 +1268,8 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.set_attr(name, value, do_force=bool_val)
         into a call like:
-            setattr(g, mpi(name)[0], value)
+            # setattr(g, mpi(name)[0], value)
+            setattr(g, name, value)
         :param node:
         :return:
         """
@@ -1264,15 +1279,16 @@ class RuleWriter(NodeTransformer):
             func=Name(id='setattr', ctx=Load()),
             args=[
                 node.func.value,  # caller
-                Subscript(
-                    value=Call(
-                        func=Name(id='mpi', ctx=Load()),
-                        args=[name],
-                        keywords=[]
-                    ),
-                    slice=Index(value=Constant(value=0)),
-                    ctx=Load()
-                ),
+                # Subscript(
+                #     value=Call(
+                #         func=Name(id='mpi', ctx=Load()),
+                #         args=[name],
+                #         keywords=[]
+                #     ),
+                #     slice=Index(value=Constant(value=0)),
+                #     ctx=Load()
+                # ),
+                name,
                 value
             ],
             keywords=[]
@@ -1285,7 +1301,8 @@ class RuleWriter(NodeTransformer):
             g.set_attrs(attrs, do_force=bool_val)
         into a call like:
             for name, value in attrs.items():
-                setattr(a, mpi(name)[0], value)
+                # setattr(a, mpi(name)[0], value)
+                setattr(a, name, value)
         :param node:
         :return:
         """
@@ -1312,15 +1329,16 @@ class RuleWriter(NodeTransformer):
                 func=Name(id='setattr', ctx=Load()),
                 args=[
                     node.func.value,  # caller
-                    Subscript(
-                        value=Call(
-                            func=Name(id='mpi', ctx=Load()),
-                            args=[Name(id='name', ctx=Load())],
-                            keywords=[]
-                        ),
-                        slice=Index(value=Constant(value=0)),
-                        ctx=Load()
-                    ),
+                    # Subscript(
+                    #     value=Call(
+                    #         func=Name(id='mpi', ctx=Load()),
+                    #         args=[Name(id='name', ctx=Load())],
+                    #         keywords=[]
+                    #     ),
+                    #     slice=Index(value=Constant(value=0)),
+                    #     ctx=Load()
+                    # ),
+                    Name(id='name', ctx=Load()),
                     Name(id='value', ctx=Load())
                 ],
                 keywords=[]
@@ -1334,56 +1352,68 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.set_rel(name, value, do_force=bool_val)
         into a call like:
-            if name == '@':
-                pop.grid.move_agent(g, value)
-            else:
-                setattr(a, mpi(name)[0], value)
+            # if name == '@':
+            #     pop.grid.move_agent(g, value)
+            # else:
+            #     setattr(g, mpi(name)[0], value)
+            setattr(g, name, value)
         :param node:
         :return:
         """
         name = RuleWriter._get_argument(node, 0, 'name')
         value = RuleWriter._get_argument(node, 1, 'value')
 
-        return If(
-            test=Compare(
-                left=name,
-                ops=[Eq()],
-                comparators=[Constant(value='@')]
-            ),
-            body=[Call(
-                func=Attribute(
-                    value=Attribute(
-                        value=Name(id='pop', ctx=Load()),
-                        attr='grid',
-                        ctx=Load()
-                    ),
-                    attr='move_agent',
-                    ctx=Load()
-                ),
-                args=[
-                    node.func.value,  # caller
-                    value
-                ],
-                keywords=[]
-            )],
-            orelse=[Call(
-                func=Name(id='setattr', ctx=Load()),
-                args=[
-                    node.func.value,
-                    Subscript(
-                        value=Call(
-                            func=Name(id='mpi', ctx=Load()),
-                            args=[name],
-                            keywords=[]
-                        ),
-                        slice=Index(value=Constant(value=0)),
-                        ctx=Load()
-                    ),
-                    value
-                ],
-                keywords=[]
-            )]
+        return Call(
+            func=Name(id='setattr', ctx=Load()),
+            args=[
+                node.func.value,
+                name,
+                value
+            ],
+            keywords=[]
         )
+
+        # return If(
+        #     test=Compare(
+        #         left=name,
+        #         ops=[Eq()],
+        #         comparators=[Constant(value='@')]
+        #     ),
+        #     body=[Call(
+        #         func=Attribute(
+        #             value=Attribute(
+        #                 value=Name(id='pop', ctx=Load()),
+        #                 attr='grid',
+        #                 ctx=Load()
+        #             ),
+        #             attr='move_agent',
+        #             ctx=Load()
+        #         ),
+        #         args=[
+        #             node.func.value,  # caller
+        #             value
+        #         ],
+        #         keywords=[]
+        #     )],
+        #     orelse=[Call(
+        #         func=Name(id='setattr', ctx=Load()),
+        #         args=[
+        #             node.func.value,
+        #             # Subscript(
+        #             #     value=Call(
+        #             #         func=Name(id='mpi', ctx=Load()),
+        #             #         args=[name],
+        #             #         keywords=[]
+        #             #     ),
+        #             #     slice=Index(value=Constant(value=0)),
+        #             #     ctx=Load()
+        #             # ),
+        #             name,
+        #             value
+        #         ],
+        #         keywords=[]
+        #     )]
+        # )
 
     @staticmethod
     def t_set_rels(node):
@@ -1392,10 +1422,11 @@ class RuleWriter(NodeTransformer):
             g.set_rels(rels, do_force=bool_val)
         into a call like:
             for name, value in rels.items():
-                if name == '@':
-                    pop.grid.move_agent(g, value)
-                else:
-                    setattr(a, mpi(name)[0], value)
+                # if name == '@':
+                #     pop.grid.move_agent(g, value)
+                # else:
+                #     setattr(a, mpi(name)[0], value)
+                setattr(a, name, value)
         :param node:
         :return:
         """
@@ -1418,46 +1449,58 @@ class RuleWriter(NodeTransformer):
                 args=[],
                 keywords=[]
             ),
-            body=[If(
-                test=Compare(
-                    left=Name(id='name', ctx=Load()),
-                    ops=[Eq()],
-                    comparators=[Constant(value='@')]
-                ),
-                body=[Call(
-                    func=Attribute(
-                        value=Attribute(
-                            value=Name(id='pop', ctx=Load()),
-                            attr='grid',
-                            ctx=Load()
-                        ),
-                        attr='move_agent',
-                        ctx=Load()
-                    ),
-                    args=[
-                        node.func.value,  # caller
-                        Name(id='value', ctx=Load())
-                    ],
-                    keywords=[]
-                )],
-                orelse=[Call(
+            body=[
+                Call(
                     func=Name(id='setattr', ctx=Load()),
                     args=[
                         node.func.value,
-                        Subscript(
-                            value=Call(
-                                func=Name(id='mpi', ctx=Load()),
-                                args=[Name(id='name', ctx=Load())],
-                                keywords=[]
-                            ),
-                            slice=Index(value=Constant(value=0)),
-                            ctx=Load()
-                        ),
+                        Name(id='name', ctx=Load()),
                         Name(id='value', ctx=Load())
                     ],
                     keywords=[]
-                )]
-            )],
+                )
+                # If(
+                #     test=Compare(
+                #         left=Name(id='name', ctx=Load()),
+                #         ops=[Eq()],
+                #         comparators=[Constant(value='@')]
+                #     ),
+                #     body=[Call(
+                #         func=Attribute(
+                #             value=Attribute(
+                #                 value=Name(id='pop', ctx=Load()),
+                #                 attr='grid',
+                #                 ctx=Load()
+                #             ),
+                #             attr='move_agent',
+                #             ctx=Load()
+                #         ),
+                #         args=[
+                #             node.func.value,  # caller
+                #             Name(id='value', ctx=Load())
+                #         ],
+                #         keywords=[]
+                #     )],
+                #     orelse=[Call(
+                #         func=Name(id='setattr', ctx=Load()),
+                #         args=[
+                #             node.func.value,
+                #             # Subscript(
+                #             #     value=Call(
+                #             #         func=Name(id='mpi', ctx=Load()),
+                #             #         args=[Name(id='name', ctx=Load())],
+                #             #         keywords=[]
+                #             #     ),
+                #             #     slice=Index(value=Constant(value=0)),
+                #             #     ctx=Load()
+                #             # ),
+                #             Name(id='name', ctx=Load()),
+                #             Name(id='value', ctx=Load())
+                #         ],
+                #         keywords=[]
+                #     )]
+                # )
+            ],
             orelse=[]
         )
 

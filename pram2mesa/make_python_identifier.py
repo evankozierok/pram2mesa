@@ -1,12 +1,11 @@
-# CREDIT:
+# Credit for original function:
 # James P. Houghton
 # https://gist.github.com/JamesPHoughton/3a3f87c6662bf5c9eccc9f2206e228fd
-# Minor adjustments have been made.
 import keyword
 import re
 
 
-def make_python_identifier(string, namespace=None, reserved_words=None,
+def make_python_identifier_original(string, namespace=None, reserved_words=None,
                            convert='drop', handle='force'):
     """
     Takes an arbitrary string and creates a valid Python identifier.
@@ -106,6 +105,10 @@ def make_python_identifier(string, namespace=None, reserved_words=None,
     if reserved_words is None:
         reserved_words = []
 
+    # special case for '@', which represents position
+    if string == '@':
+        string = '_at_sign'
+
     # create a working copy (and make it lowercase, while we're at it)
     s = string.lower()
 
@@ -145,3 +148,35 @@ def make_python_identifier(string, namespace=None, reserved_words=None,
     namespace[string] = s
 
     return s, namespace
+
+
+def make_python_identifier(string):
+    """
+    A simplified version of make_python_identifier that is marginally faster. It:
+    * does not use a namespace
+    * does not allow for reserved words other than python keywords
+    * always drops invalid characters, not convert them to hex
+    * only handles conflicts with python keywords, appending `_1` to the end
+    :param string: The text to be converted to a valid python identifier
+    :return: A string containing a valid python identifier
+    """
+    if string == '@':
+        return '_at_sign'
+
+    # create a working copy (and make it lowercase, while we're at it)
+    s = string.lower()
+    # remove leading and trailing whitespace
+    s = s.strip()
+    # Make spaces into underscores
+    s = re.sub('[\\s\\t\\n]+', '_', s)
+    # Replace dashes with underscores as well
+    s = s.replace('-', '_')
+    # Remove invalid characters
+    s = re.sub('[^0-9a-zA-Z_]', '', s)
+    # Remove leading characters until we find a letter or underscore
+    s = re.sub('^[^a-zA-Z_]+', '', s)
+
+    if s in keyword.kwlist:
+        return s + '_1'
+
+    return s

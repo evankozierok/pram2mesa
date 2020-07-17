@@ -3,7 +3,7 @@ A custom Agent class for a Mesa simulation.
 """
 
 from mesa import Agent
-from pram2mesa.make_python_identifier import make_python_identifier as mpi
+from pram2mesa.make_python_identifier import make_python_identifier_original as mpi
 from collections import Iterable
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Callable
