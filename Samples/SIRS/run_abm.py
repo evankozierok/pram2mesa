@@ -3,14 +3,14 @@ from mesa.datacollection import DataCollector
 import matplotlib.pyplot as plt
 import time
 
-model = SIRSModelModel()
-
-model.datacollector = DataCollector(
-    model_reporters={
-        "Susceptible": lambda m: sum([a.flu == 's' for a in m.schedule.agents]),
-        "Infected": lambda m: sum([a.flu == 'i' for a in m.schedule.agents]),
-        "Recovered": lambda m: sum([a.flu == 'r' for a in m.schedule.agents])
-    }
+model = SIRSModelModel(
+    datacollector=DataCollector(
+        model_reporters={
+            "Susceptible": lambda m: sum([a.flu == 's' for a in m.schedule.agents]),
+            "Infected": lambda m: sum([a.flu == 'i' for a in m.schedule.agents]),
+            "Recovered": lambda m: sum([a.flu == 'r' for a in m.schedule.agents])
+        }
+    )
 )
 
 runs = 48

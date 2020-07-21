@@ -2,15 +2,30 @@
 A custom Agent class for a Mesa simulation.
 """
 
-from mesa import Agent
-from pram2mesa.make_python_identifier import make_python_identifier as mpi
+from mesa import Agent, Model
+from .make_python_identifier import make_python_identifier as mpi
+from collections import Iterable, namedtuple
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Callable
+import copy
 import dill
 import json
 # ---- CUSTOM IMPORTS ----
 # (many may be extraneous)
+from abc import abstractmethod, ABC
+from enum import IntEnum
+from scipy.stats import gamma, lognorm, norm, poisson, rv_discrete
+import math
+import matplotlib.pyplot as plt
+from abc import abstractmethod, ABC
+import random
+from dotmap import DotMap
 from collections import Iterable
+from attr import attrs, attrib, converters
+from scipy.integrate import ode, solve_ivp
+from dotmap import DotMap
+import string
+import numpy as np
 
 rule_file = 'SIRSModelRules.json'  # This could probably be done better?
 
@@ -27,41 +42,111 @@ class GroupQry:
 
     def __post_init__(self):
         # ensure attributes and relations are valid variable names
-        self.attr = {mpi(k)[0]: v for k, v in self.attr.items()}
-        self.rel = {mpi(k)[0]: v for k, v in self.rel.items()}
+        self.attr = {mpi(k): v for k, v in self.attr.items()}
+        self.rel = {mpi(k): v for k, v in self.rel.items()}
 
 
 class SIRSModelAgent(Agent):
 
+    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos',
+                  'SIRSModel_MC')  # TODO: should pos actually be in here
+
     # def __init__(self, unique_id, model):
     def __init__(self, unique_id, model, attr, rel):
-        super().__init__(unique_id, model)
-        # making identifiers should be handled in translation now
-        # self.namespace = {}  # for make_python_identifier
         # Mesa generally holds Agent data (including locations) as attributes, not dictionary entries.
         # as such, we only store names of attributes and relations in different sets for compatibility with some
         # specific PRAM functions like get_attrs and get_rels. If needed, attribute values are retrieved lazily
         self._attr = set()
         self._rel = set()
+        super().__init__(unique_id, model)
+        # making identifiers should be handled in translation now
+        # self.namespace = {}  # for make_python_identifier
         for key, value in attr.items():
             # id, self.namespace = mpi(key, namespace=self.namespace, reserved_words=[])
             # setattr(self, id, value)
             # self._attr.add(id)
             setattr(self, key, value)
-            self._attr.add(key)
+            # self._attr.add(key)
         for key, value in rel.items():
             s = self.model.site_hashes[value]
             if key == '@':
                 self.model.grid.place_agent(self, s)
                 self._rel.add('pos')
             else:
-                # id, self.namespace = mpi(key, namespace=self.namespace, reserved_words=['agent', 'weight'])
-                # setattr(self, id, s)
-                # self._rel.add(id)
                 setattr(self, key, s)
-                self._rel.add(key)
+            # else:
+            #     # id, self.namespace = mpi(key, namespace=self.namespace, reserved_words=['agent', 'weight'])
+            #     # setattr(self, id, s)
+            #     # self._rel.add(id)
+            #     setattr(self, key, s)
+            #     self._rel.add(key)
         # make (callable) instances of each of our rules
         self.SIRSModel_MC = SIRSModel_MC(self)
+
+    # we customize __setattr__ in order to:
+    # - keep track of attributes vs relations, mostly for pram compatibility.
+    # - prevent some awkward constructs when trying to set position (i.e., `if xyz == '@'...`)
+    # - transparently use make_python_identifier to ensure safe variable names
+    def __setattr__(self, name, value):
+        # don't treat special variables any different
+        if name in SIRSModelAgent._protected:
+            object.__setattr__(self, name, value)
+            return
+
+        name = mpi(name)
+
+        if value in self.model.grid.G.nodes:
+            # if value in self.model.site_hashes | self.model.grid.G.nodes:
+            #     try:
+            #         value = self.model.site_hashes[value]
+            #     except KeyError:
+            #         pass
+            if name == '_at_sign':
+                self.model.grid.move_agent(self, value)
+                # self._rel.add('pos')
+            else:
+                object.__setattr__(self, name, value)
+                self._rel.add(name)
+            return
+
+        object.__setattr__(self, name, value)
+        self._attr.add(name)
+
+    # we also customize __getattr__ to use make_python_identifier where needed and for position lookups
+    # we do not use __getattribute__; we only want to change behavior for non-safe/non-found attributes, and '@' (pos)
+    def __getattr__(self, name):
+        mod_name = mpi(name)
+        # if name == mod_name:
+        #     raise AttributeError(f"'{type(self).__name__}' object has no attribute '{mod_name}'")
+        if mod_name == '_at_sign':
+            return self.pos
+
+        # all we do to fix broken lookups is look for positional calls and unsafe names.
+        # if calling mpi fixes a name, this sends it back to __getattribute__ and we continue as normal.
+        # if not, it will get caught by the first if clause above (this may be an inefficient way to do this)
+        # return getattr(self, mod_name)
+        return object.__getattribute__(self, mod_name)
+
+    # we similarly customize __delattr__ to use make_python_identifier and to remove agents from the grid
+    def __delattr__(self, name):
+        try:
+            object.__delattr__(self, name)
+        except AttributeError:
+            name = mpi(name)
+            if name == 'at_sign':
+                self.grid._remove_agent(self, self.pos)
+                object.__delattr__(self, 'pos')
+            else:
+                object.__delattr__(self, name)
+
+        # purge from _attr or _rel (we just blindly guess until we either get it or don't)
+        try:
+            self._attr.remove(name)
+        except KeyError:
+            try:
+                self._rel.remove(name)
+            except KeyError:
+                pass
 
     # currently, translated models use StagedActivation for all their rules.
     # in the future, a sort of simultaneous staged activation may be possible.
@@ -81,12 +166,12 @@ class SIRSModelAgent(Agent):
             Note: these checks are done after making the string, iterable items, or keys into python-safe names.
         """
         if isinstance(qry, dict):
-            qry = {mpi(key)[0]: value for key, value in qry.items()}
+            qry = {mpi(key): value for key, value in qry.items()}
             return qry.items() <= self.__dict__.items()
         elif isinstance(qry, str):  # place above iterable check, since str is iterable
-            return mpi(qry)[0] in self.__dict__.keys()
+            return mpi(qry) in self.__dict__.keys()
         elif isinstance(qry, Iterable):
-            return all(mpi(i)[0] in self.__dict__.keys() for i in qry)
+            return all(mpi(i) in self.__dict__.keys() for i in qry)
 
         raise TypeError(
             f'qry passed to has_attr should be of type dict, str, or Iterable, but was {type(qry)} instead')
