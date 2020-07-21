@@ -18,11 +18,8 @@ import shutil
 from pram2mesa.rule_writer import RuleWriter
 
 
-# TODO: package mpi with each translation? -- Make more specific function for that
 # TODO: maybe incorporate is_applicable into __call__ or something
 # TODO: make all dangling random calls go to pop.random
-# TODO: _attr, _rel, and thus get_attrs and get_rels are not good. Could try doing __setattr__ shenanigans? Or just say
-#       goodbye to that part... (matching full queries also a mess)
 # TODO: SimRules
 # TODO: more robust handling of inheritance; currently we stop after finding an apply but maybe we should keep going?
 # TODO: make it faster. A large portion of time is spent in get_groups when trying a GroupQry
@@ -104,8 +101,7 @@ def create_agent_class(name: str, rules: Iterable[str], rule_names: Iterable[str
     # \n is not permitted in an f-string expression, so do so beforehand
     rules = '\n'.join(rules)
     rule_declarations = '\n        '.join([f'self.{r} = {r}(self)' for r in rule_names])
-    # step_functions = ['rule_a', 'rule_b', 'rule_c']
-    # step_functions_out = '\n        '.join([f'{step}()' for step in step_functions])
+    rule_calls = '\n        '.join([f'self.{r}()' for r in rule_names])
 
     code = f'''"""
 A custom Agent class for a Mesa simulation.
@@ -140,7 +136,7 @@ class GroupQry:
 
 class {class_name}(Agent):
 
-    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos',
+    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos', 'set_dict', 'del_set',
                   {', '.join([f"'{r}'" for r in rule_names])})  # TODO: should pos actually be in here
     
     # def __init__(self, unique_id, model):
@@ -150,6 +146,8 @@ class {class_name}(Agent):
         # specific PRAM functions like get_attrs and get_rels. If needed, attribute values are retrieved lazily
         self._attr = set()
         self._rel = set()
+        self.set_dict = {{}}
+        self.del_set = set()
         super().__init__(unique_id, model)
         # making identifiers should be handled in translation now
         # self.namespace = {{}}  # for make_python_identifier
@@ -241,12 +239,38 @@ class {class_name}(Agent):
                 pass
                 
 
-    # currently, translated models use StagedActivation for all their rules.
-    # in the future, a sort of simultaneous staged activation may be possible.
-    #
-    # as such, the step function should not be used.
+    # models use SimultaneousActivation.
+    # The step function calls all of the rules, which will stage attribute changes.
+    # The advance function makes those changes.
     def step(self): 
-        pass
+        {rule_calls}
+
+    def advance(self):
+        for key, value in self.set_dict.items():
+            setattr(self, key, value)
+        self.set_dict.clear()
+
+        while self.del_set:
+            delattr(self, self.del_set.pop())
+
+    def set(self, key, value):
+        """
+        Use this function instead of directly setting an attribute in a rule.
+        """
+        self.set_dict[key] = value
+
+    def get(self, key, default=None):
+        """
+        Alias for getattr(self, key, default).
+        (Note however that this will return None instead of throw an AttributeError)
+        """
+        return getattr(self, key, default)
+
+    def delete(self, key):
+        """
+        Use this function instead of directly deleting an attribute in a rule.
+        """
+        self.del_set.add(key)
 
 '''
     if 'copy' in used_functions:
@@ -330,12 +354,12 @@ class {class_name}(Agent):
             qry.rel['pos'] = qry.rel.pop('@')
         
         if qry.full:
-            return qry.attr.items() == {k: getattr(self, k) for k in self._attr}.items() \\
-                   and qry.rel.items() == {k: getattr(self, k) for k in self._rel}.items() \\
+            return qry.attr.items() == {k: self.get(k) for k in self._attr}.items() \\
+                   and qry.rel.items() == {k: self.get(k) for k in self._rel}.items() \\
                    and all([fn(self) for fn in qry.cond])
         else:
-            return qry.attr.items() <= {k: getattr(self, k) for k in self._attr}.items() \\
-                   and qry.rel.items() <= {k: getattr(self, k) for k in self._rel}.items() \\
+            return qry.attr.items() <= {k: self.get(k) for k in self._attr}.items() \\
+                   and qry.rel.items() <= {k: self.get(k) for k in self._rel}.items() \\
                    and all([fn(self) for fn in qry.cond])
 '''
 
@@ -379,7 +403,7 @@ import os
 import warnings
 from mesa import Agent, Model
 from mesa.space import NetworkGrid
-from mesa.time import StagedActivation
+from mesa.time import SimultaneousActivation
 from .make_python_identifier import make_python_identifier as mpi
 import networkx as nx
 {custom_imports}
@@ -391,7 +415,7 @@ class {class_name}(Model):
         super().__init__()
         # work from directory this file is in
         os.chdir(os.path.dirname(os.path.realpath(__file__)))
-        self.schedule = StagedActivation(self, stage_list={stage_list})
+        self.schedule = SimultaneousActivation(self)
         self.G = nx.Graph()
         self.time = 0  # simple iteration counter
         self._generate_sites()
@@ -403,7 +427,8 @@ class {class_name}(Model):
         self.datacollector = datacollector
         {f"""
         for a in self.schedule.agents:
-            {class_name}._group_setup(self, a)""" 
+            {class_name}._group_setup(self, a)
+            a.advance()  # apply changes""" 
         if group_setup else ""}
         
         
@@ -423,7 +448,7 @@ class {class_name}(Model):
             self.schedule.add(a)
 
         for a in self.schedule.agents:
-            if getattr(a, '__void__', False):
+            if a.get('__void__', False):
                 self.grid._remove_agent(a, a.pos)
                 self.schedule.remove(a)
 
@@ -478,7 +503,7 @@ class {class_name}(Model):
             return node_dict.get(name) if name is not None else node_dict
         elif isinstance(agent_or_node, Agent):
             # return getattr(agent_or_node, name, agent_or_node.namespace[name])
-            return getattr(agent_or_node, name)
+            return agent_or_node.get(name)
         else:
             raise TypeError(f"get_attr expected a str or Agent for agent_or_node, but received {type(agent_or_node)}")
 '''
@@ -852,7 +877,7 @@ def main():
             # fixed naming issue in pram/sim.py line 815
         ])
     )
-    pram2mesa(s, 'TestAttributeAccess')
+    pram2mesa(s, 'TestSimultaneousGrammar')
 
     # tree = ast.parse(
     #     # "g.get_attr(name)\n"
