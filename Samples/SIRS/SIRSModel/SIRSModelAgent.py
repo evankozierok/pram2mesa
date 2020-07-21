@@ -12,20 +12,20 @@ import dill
 import json
 # ---- CUSTOM IMPORTS ----
 # (many may be extraneous)
-from abc import abstractmethod, ABC
-from enum import IntEnum
-from scipy.stats import gamma, lognorm, norm, poisson, rv_discrete
 import math
-import matplotlib.pyplot as plt
 from abc import abstractmethod, ABC
-import random
 from dotmap import DotMap
-from collections import Iterable
+from abc import abstractmethod, ABC
 from attr import attrs, attrib, converters
-from scipy.integrate import ode, solve_ivp
 from dotmap import DotMap
-import string
 import numpy as np
+import string
+from scipy.stats import gamma, lognorm, norm, poisson, rv_discrete
+from scipy.integrate import ode, solve_ivp
+import matplotlib.pyplot as plt
+import random
+from enum import IntEnum
+from collections import Iterable
 
 rule_file = 'SIRSModelRules.json'  # This could probably be done better?
 
@@ -48,7 +48,7 @@ class GroupQry:
 
 class SIRSModelAgent(Agent):
 
-    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos',
+    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos', 'set_dict', 'del_set',
                   'SIRSModel_MC')  # TODO: should pos actually be in here
 
     # def __init__(self, unique_id, model):
@@ -58,6 +58,8 @@ class SIRSModelAgent(Agent):
         # specific PRAM functions like get_attrs and get_rels. If needed, attribute values are retrieved lazily
         self._attr = set()
         self._rel = set()
+        self.set_dict = {}
+        self.del_set = set()
         super().__init__(unique_id, model)
         # making identifiers should be handled in translation now
         # self.namespace = {}  # for make_python_identifier
@@ -148,12 +150,38 @@ class SIRSModelAgent(Agent):
             except KeyError:
                 pass
 
-    # currently, translated models use StagedActivation for all their rules.
-    # in the future, a sort of simultaneous staged activation may be possible.
-    #
-    # as such, the step function should not be used.
+    # models use SimultaneousActivation.
+    # The step function calls all of the rules, which will stage attribute changes.
+    # The advance function makes those changes.
     def step(self):
-        pass
+        self.SIRSModel_MC()
+
+    def advance(self):
+        for key, value in self.set_dict.items():
+            setattr(self, key, value)
+        self.set_dict.clear()
+
+        while self.del_set:
+            delattr(self, self.del_set.pop())
+
+    def set(self, key, value):
+        """
+        Use this function instead of directly setting an attribute in a rule.
+        """
+        self.set_dict[key] = value
+
+    def get(self, key, default=None):
+        """
+        Alias for getattr(self, key, default).
+        (Note however that this will return None instead of throw an AttributeError)
+        """
+        return getattr(self, key, default)
+
+    def delete(self, key):
+        """
+        Use this function instead of directly deleting an attribute in a rule.
+        """
+        self.del_set.add(key)
 
     def has_attr(self, qry):
         """
@@ -193,12 +221,12 @@ class SIRSModelAgent(Agent):
             qry.rel['pos'] = qry.rel.pop('@')
 
         if qry.full:
-            return qry.attr.items() == {k: getattr(self, k) for k in self._attr}.items() \
-                and qry.rel.items() == {k: getattr(self, k) for k in self._rel}.items() \
+            return qry.attr.items() == {k: self.get(k) for k in self._attr}.items() \
+                and qry.rel.items() == {k: self.get(k) for k in self._rel}.items() \
                 and all([fn(self) for fn in qry.cond])
         else:
-            return qry.attr.items() <= {k: getattr(self, k) for k in self._attr}.items() \
-                and qry.rel.items() <= {k: getattr(self, k) for k in self._rel}.items() \
+            return qry.attr.items() <= {k: self.get(k) for k in self._attr}.items() \
+                and qry.rel.items() <= {k: self.get(k) for k in self._rel}.items() \
                 and all([fn(self) for fn in qry.cond])
 
 
@@ -289,7 +317,7 @@ class DiscreteInvMarkovChain:
             if tm[i] > 0:
                 _cml_prob += tm[i]
                 if _x < _cml_prob:
-                    setattr(group, self.var, self.states[i])
+                    group.set(self.var, self.states[i])
                     return
 
     def get_states(self):

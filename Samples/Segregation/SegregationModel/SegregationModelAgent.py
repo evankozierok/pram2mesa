@@ -12,18 +12,18 @@ import dill
 import json
 # ---- CUSTOM IMPORTS ----
 # (many may be extraneous)
+from attr import attrs, attrib, converters
+from enum import IntEnum
+from scipy.integrate import ode, solve_ivp
+from collections import Iterable
+from abc import abstractmethod, ABC
+from scipy.stats import gamma, lognorm, norm, poisson, rv_discrete
+import random
+import math
+from dotmap import DotMap
 import matplotlib.pyplot as plt
 import numpy as np
 import string
-import math
-from dotmap import DotMap
-from abc import abstractmethod, ABC
-from collections import Iterable
-import random
-from attr import attrs, attrib, converters
-from scipy.stats import gamma, lognorm, norm, poisson, rv_discrete
-from scipy.integrate import ode, solve_ivp
-from enum import IntEnum
 
 rule_file = 'SegregationModelRules.json'  # This could probably be done better?
 
@@ -46,7 +46,7 @@ class GroupQry:
 
 class SegregationModelAgent(Agent):
 
-    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos',
+    _protected = ('model', 'random', 'source_name', 'unique_id', '_attr', '_rel', 'pos', 'set_dict', 'del_set',
                   'SegregationModel')  # TODO: should pos actually be in here
 
     # def __init__(self, unique_id, model):
@@ -56,6 +56,8 @@ class SegregationModelAgent(Agent):
         # specific PRAM functions like get_attrs and get_rels. If needed, attribute values are retrieved lazily
         self._attr = set()
         self._rel = set()
+        self.set_dict = {}
+        self.del_set = set()
         super().__init__(unique_id, model)
         # making identifiers should be handled in translation now
         # self.namespace = {}  # for make_python_identifier
@@ -146,12 +148,38 @@ class SegregationModelAgent(Agent):
             except KeyError:
                 pass
 
-    # currently, translated models use StagedActivation for all their rules.
-    # in the future, a sort of simultaneous staged activation may be possible.
-    #
-    # as such, the step function should not be used.
+    # models use SimultaneousActivation.
+    # The step function calls all of the rules, which will stage attribute changes.
+    # The advance function makes those changes.
     def step(self):
-        pass
+        self.SegregationModel()
+
+    def advance(self):
+        for key, value in self.set_dict.items():
+            setattr(self, key, value)
+        self.set_dict.clear()
+
+        while self.del_set:
+            delattr(self, self.del_set.pop())
+
+    def set(self, key, value):
+        """
+        Use this function instead of directly setting an attribute in a rule.
+        """
+        self.set_dict[key] = value
+
+    def get(self, key, default=None):
+        """
+        Alias for getattr(self, key, default).
+        (Note however that this will return None instead of throw an AttributeError)
+        """
+        return getattr(self, key, default)
+
+    def delete(self, key):
+        """
+        Use this function instead of directly deleting an attribute in a rule.
+        """
+        self.del_set.add(key)
 
     def has_attr(self, qry):
         """
@@ -213,12 +241,12 @@ class SegregationModelAgent(Agent):
             qry.rel['pos'] = qry.rel.pop('@')
 
         if qry.full:
-            return qry.attr.items() == {k: getattr(self, k) for k in self._attr}.items() \
-                and qry.rel.items() == {k: getattr(self, k) for k in self._rel}.items() \
+            return qry.attr.items() == {k: self.get(k) for k in self._attr}.items() \
+                and qry.rel.items() == {k: self.get(k) for k in self._rel}.items() \
                 and all([fn(self) for fn in qry.cond])
         else:
-            return qry.attr.items() <= {k: getattr(self, k) for k in self._attr}.items() \
-                and qry.rel.items() <= {k: getattr(self, k) for k in self._rel}.items() \
+            return qry.attr.items() <= {k: self.get(k) for k in self._attr}.items() \
+                and qry.rel.items() <= {k: self.get(k) for k in self._rel}.items() \
                 and all([fn(self) for fn in qry.cond])
 
 
@@ -278,7 +306,7 @@ class SegregationModel:
             site_rnd = self.get_random_site(pop, site)
             _x = pop.random.random()
             if _x < self.p_migrate:
-                setattr(group, '@', site_rnd)
+                group.set('@', site_rnd)
                 return
             else:
                 return

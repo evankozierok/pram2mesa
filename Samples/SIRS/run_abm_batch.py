@@ -34,14 +34,15 @@ for f in frames:
     plt.plot(f['Infected'], color='orange', alpha=alpha, label='Infected')
     plt.plot(f['Recovered'], color='green', alpha=alpha, label='Recovered')
 
-# eliminate duplicates in legend
+# eliminate duplicates in legend, reset opacity
 handles, labels = plt.gca().get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
-plt.legend(by_label.values(), by_label.keys())
+for h in plt.legend(by_label.values(), by_label.keys()).legendHandles:
+    h.set_alpha(1)
 
 plt.xlabel('Iteration')
 plt.ylabel('Agents')
-plt.title('SIRS ABM Model - 48 Iterations - 10 Trials')
+plt.title(f'SIRS ABM Model - {steps} Iterations - {runs} Trials')
 plt.tight_layout()
 # plt.show()
 plt.savefig('SIRS_ABM_batch_out.png', dpi=300)

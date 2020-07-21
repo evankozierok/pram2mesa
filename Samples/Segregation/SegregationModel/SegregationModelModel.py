@@ -8,7 +8,7 @@ import os
 import warnings
 from mesa import Agent, Model
 from mesa.space import NetworkGrid
-from mesa.time import StagedActivation
+from mesa.time import SimultaneousActivation
 from .make_python_identifier import make_python_identifier as mpi
 import networkx as nx
 
@@ -19,7 +19,7 @@ class SegregationModelModel(Model):
         super().__init__()
         # work from directory this file is in
         os.chdir(os.path.dirname(os.path.realpath(__file__)))
-        self.schedule = StagedActivation(self, stage_list=['SegregationModel'])
+        self.schedule = SimultaneousActivation(self)
         self.G = nx.Graph()
         self.time = 0  # simple iteration counter
         self._generate_sites()
@@ -47,7 +47,7 @@ class SegregationModelModel(Model):
             self.schedule.add(a)
 
         for a in self.schedule.agents:
-            if getattr(a, '__void__', False):
+            if a.get('__void__', False):
                 self.grid._remove_agent(a, a.pos)
                 self.schedule.remove(a)
 
@@ -99,7 +99,7 @@ class SegregationModelModel(Model):
             return node_dict.get(name) if name is not None else node_dict
         elif isinstance(agent_or_node, Agent):
             # return getattr(agent_or_node, name, agent_or_node.namespace[name])
-            return getattr(agent_or_node, name)
+            return agent_or_node.get(name)
         else:
             raise TypeError(
                 f"get_attr expected a str or Agent for agent_or_node, but received {type(agent_or_node)}")
