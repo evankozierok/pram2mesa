@@ -36,14 +36,15 @@ for f in frames:
     plt.plot(f['Red @ B'], color='firebrick', alpha=alpha, label='Red @ B')
     plt.plot(f['Blue @ B'], color='navy', alpha=alpha, label='Blue @ B')
 
-# eliminate duplicates in legend
+# eliminate duplicates in legend, reset opacity
 handles, labels = plt.gca().get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
-plt.legend(by_label.values(), by_label.keys())
+for h in plt.legend(by_label.values(), by_label.keys()).legendHandles:
+    h.set_alpha(1)
 
 plt.xlabel('Iteration')
 plt.ylabel('Agents')
-plt.title('Segregation ABM Model - 48 Iterations - 10 Trials')
+plt.title(f'Segregation ABM Model - {steps} Iterations - {runs} Trials')
 plt.tight_layout()
 # plt.show()
 plt.savefig('Segregation_ABM_batch_out.png', dpi=300)

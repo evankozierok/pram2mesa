@@ -773,7 +773,7 @@ class RuleWriter(NodeTransformer):
     @staticmethod
     def _parse_gss_call(elt: Call) -> typing.Tuple[typing.List, Optional[Any]]:
         """
-        Translates a GroupSplitSpec definition Call into a series of Calls to getattr and delattr, followed by a Return.
+        Translates a GroupSplitSpec definition Call into a series of Calls to set and delete, followed by a Return.
         Also returns the probability value.
         :param elt: A Call node, hopefully calling a GroupSplitSpec initialization
         :return: A tuple containing a list of Call nodes, and a node representing the probability that those calls
@@ -822,11 +822,11 @@ class RuleWriter(NodeTransformer):
                 #     )))
 
                 calls.extend([Expr(Call(
-                    func=Name(id='setattr', ctx=Load()),
+                    func=Attribute(
+                        value=Name(id='group', ctx=Load()),
+                        attr='set'
+                    ),
                     args=[
-                        Name(id='group', ctx=Load()),
-                        # ensure we are setting appropriate variables (this is now done in __setattr__/__delattr__)
-                        # Constant(value=mpi(key.value)[0]) if isinstance(key, Constant) else key,
                         key,
                         value
                     ],
@@ -835,10 +835,11 @@ class RuleWriter(NodeTransformer):
             if kw.arg.endswith("del"):
                 # kw.value is (should be) a Set node
                 calls.extend([Expr(Call(
-                    func=Name(id='delattr', ctx=Load()),
+                    func=Attribute(
+                        value=Name(id='group', ctx=Load()),
+                        attr='delete'
+                    ),
                     args=[
-                        Name(id='group', ctx=Load()),
-                        # Constant(value=mpi(key.value)[0]) if isinstance(key, Constant) else key
                         key
                     ],
                     keywords=[]
@@ -964,7 +965,7 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.get_attrs()
         into a call like:
-            {k: getattr(g, k) for k in g._attr}
+            {k: g.get(k) for k in g._attr}
         :param node:
         :return:
         """
@@ -973,9 +974,11 @@ class RuleWriter(NodeTransformer):
         return DictComp(
             key=Name(id='k', ctx=Load()),
             value=Call(
-                func=Name(id='getattr', ctx=Load()),
+                func=Attribute(
+                    value=node.func.value,
+                    attr='get'
+                ),
                 args=[
-                    node.func.value,  # caller
                     Name(id='k', ctx=Load())
                 ],
                 keywords=[]
@@ -1048,9 +1051,7 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.get_rel(name)
         into a call like:
-            # g.pos if name == '@' else getattr(g, name, g.namespace[name])
-            # g.pos if name == '@' else getattr(g, mpi(name)[0])
-            getattr(g, name)
+            g.get(name)
         :param node:
         :return:
         """
@@ -1060,9 +1061,11 @@ class RuleWriter(NodeTransformer):
         #     mod_name, _ = mpi(name)
 
         return Call(
-            func=Name(id='getattr', ctx=Load()),
+            func=Attribute(
+                value=node.func.value,
+                attr='get'
+            ),
             args=[
-                node.func.value,
                 name
             ],
             keywords=[]
@@ -1101,7 +1104,7 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.get_rels()
         into a call like:
-            {k: getattr(g, k) for k in g._rel}
+            {k: g.get(k) for k in g._rel}
         :param node:
         :return:
         """
@@ -1110,9 +1113,11 @@ class RuleWriter(NodeTransformer):
         return DictComp(
             key=Name(id='k', ctx=Load()),
             value=Call(
-                func=Name(id='getattr', ctx=Load()),
+                func=Attribute(
+                    value=node.func.value,
+                    attr='get'
+                ),
                 args=[
-                    node.func.value,  # caller
                     Name(id='k', ctx=Load())
                 ],
                 keywords=[]
@@ -1239,14 +1244,16 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.is_void()
         into a call like:
-            getattr(g, '__void__', False)
+            g.get('__void__', False)
         :param node:
         :return:
         """
         return Call(
-            func=Name(id='getattr', ctx=Load),
+            func=Attribute(
+                value=node.func.value,
+                attr='set'
+            ),
             args=[
-                node.func.value,  # caller
                 Constant(value='__void__'),
                 Constant(value=False)
             ],
@@ -1268,26 +1275,18 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.set_attr(name, value, do_force=bool_val)
         into a call like:
-            # setattr(g, mpi(name)[0], value)
-            setattr(g, name, value)
+            g.set(name, value)
         :param node:
         :return:
         """
         name = RuleWriter._get_argument(node, 0, 'name')
         value = RuleWriter._get_argument(node, 1, 'value')
         return Call(
-            func=Name(id='setattr', ctx=Load()),
+            func=Attribute(
+                value=node.func.value,
+                attr='set'
+            ),
             args=[
-                node.func.value,  # caller
-                # Subscript(
-                #     value=Call(
-                #         func=Name(id='mpi', ctx=Load()),
-                #         args=[name],
-                #         keywords=[]
-                #     ),
-                #     slice=Index(value=Constant(value=0)),
-                #     ctx=Load()
-                # ),
                 name,
                 value
             ],
@@ -1301,8 +1300,7 @@ class RuleWriter(NodeTransformer):
             g.set_attrs(attrs, do_force=bool_val)
         into a call like:
             for name, value in attrs.items():
-                # setattr(a, mpi(name)[0], value)
-                setattr(a, name, value)
+                g.set(name, value)
         :param node:
         :return:
         """
@@ -1325,19 +1323,12 @@ class RuleWriter(NodeTransformer):
                 args=[],
                 keywords=[]
             ),
-            body=[Call(  # setattr(a, name, value)
-                func=Name(id='setattr', ctx=Load()),
+            body=[Call(  # g.set(name, value)
+                func=Attribute(
+                    value=node.func.value,
+                    attr='set'
+                ),
                 args=[
-                    node.func.value,  # caller
-                    # Subscript(
-                    #     value=Call(
-                    #         func=Name(id='mpi', ctx=Load()),
-                    #         args=[Name(id='name', ctx=Load())],
-                    #         keywords=[]
-                    #     ),
-                    #     slice=Index(value=Constant(value=0)),
-                    #     ctx=Load()
-                    # ),
                     Name(id='name', ctx=Load()),
                     Name(id='value', ctx=Load())
                 ],
@@ -1352,11 +1343,7 @@ class RuleWriter(NodeTransformer):
         Translates a call like:
             g.set_rel(name, value, do_force=bool_val)
         into a call like:
-            # if name == '@':
-            #     pop.grid.move_agent(g, value)
-            # else:
-            #     setattr(g, mpi(name)[0], value)
-            setattr(g, name, value)
+            g.set(name, value)
         :param node:
         :return:
         """
@@ -1364,9 +1351,11 @@ class RuleWriter(NodeTransformer):
         value = RuleWriter._get_argument(node, 1, 'value')
 
         return Call(
-            func=Name(id='setattr', ctx=Load()),
+            func=Attribute(
+                value=node.func.value,
+                attr='set'
+            ),
             args=[
-                node.func.value,
                 name,
                 value
             ],
@@ -1422,11 +1411,7 @@ class RuleWriter(NodeTransformer):
             g.set_rels(rels, do_force=bool_val)
         into a call like:
             for name, value in rels.items():
-                # if name == '@':
-                #     pop.grid.move_agent(g, value)
-                # else:
-                #     setattr(a, mpi(name)[0], value)
-                setattr(a, name, value)
+                g.set(name, value)
         :param node:
         :return:
         """
@@ -1451,9 +1436,11 @@ class RuleWriter(NodeTransformer):
             ),
             body=[
                 Call(
-                    func=Name(id='setattr', ctx=Load()),
+                    func=Attribute(
+                        value=node.func.value,
+                        attr='set'
+                    ),
                     args=[
-                        node.func.value,
                         Name(id='name', ctx=Load()),
                         Name(id='value', ctx=Load())
                     ],
