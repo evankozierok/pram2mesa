@@ -1,0 +1,28 @@
+[
+    {
+        "name": "flu-progress",
+        "group_qry": null,
+        "memo": null,
+        "name_human": "flu-progress",
+        "t": null,
+        "i": null,
+        "rules": [],
+        "t_unit_ms": null,
+        "t_mul": 0.0,
+        "T": {},
+        "rule_type": "FluProgressRule"
+    },
+    {
+        "name": "flu-location",
+        "group_qry": null,
+        "memo": null,
+        "name_human": "flu-location",
+        "t": null,
+        "i": null,
+        "rules": [],
+        "t_unit_ms": null,
+        "t_mul": 0.0,
+        "T": {},
+        "rule_type": "FluLocationRule"
+    }
+]
