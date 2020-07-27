@@ -6,7 +6,7 @@ pram2mesa is a tool allowing a Probabilistic Relational Agent-Based Model (PRAM)
 * PRAMs have a more formal grammar, while ABMs are open-ended
 * PRAMs are often much faster than ABMs, especially on very large populations
 
-Core to this project, however, is a more theoretical purpose - demonstrating the interconnectedness of the two frameworks. While they are not the same, they are similar in many ways, allowing a tool like pram2mesa to exist.
+Core to this project, however, is a more theoretical purpose - demonstrating the interconnectedness of the two frameworks. While they are not the same, they are similar in many ways, allowing a tool like pram2mesa to exist. For more on comparing these frameworks, see the [Media](https://github.com/evankozierok/pram2mesa/tree/master/Media) section.
 
 ## Installation
 ### Dependencies (For Translation)
@@ -52,7 +52,7 @@ By default, pram2mesa will automatically clean the outputted Python files in an 
 ```python
 pram2mesa(my_pram, 'MyNewABM', autopep=False)
 ```
-This will create a new directory called `MyNewABM` (or `MyNewABM_1` if `MyNewABM` already exists; or `MyNewABM_2` etc...) containing two Python files and three JSON files:
+This will create a new directory called `MyNewABM` (or `MyNewABM_1` if `MyNewABM` already exists; or `MyNewABM_2` etc...) containing three Python files and three JSON files:
 ```
 MyNewABM
 +-- MyNewABMAgent.py
@@ -60,9 +60,10 @@ MyNewABM
 +-- MyNewABMModel.py
 +-- MyNewABMRules.json
 +-- MyNewABMSites.json
++-- make_python_identifier.py
 ```
 ### Running the ABM
-Once you've created the files, you can instantiate your new model and run it as you normally would in Mesa. Make sure to keep all the files together; the Agent and Model classes need the JSON files during their initialization.
+Once you've created the files, you can instantiate your new model and run it as you normally would in Mesa. Make sure to keep all the files together; the Agent and Model classes need the JSON files during their initialization and use `make_python_identifier.py` as well.
 ```python
 from MyNewABMModel import MyNewABMModel
 
