@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setuptools.setup(
     name='pram2mesa',
-    version='0.1.0',
+    version='0.2.0',
     author='Evan Kozierok',
     author_email='evan.kozierok@gmail.com',
     description="Tools for translating PyPRAM's Probabilistic Relational Agent-Based Models to Mesa's Agent-Based Models",
